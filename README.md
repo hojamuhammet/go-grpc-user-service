@@ -1,6 +1,6 @@
 # *gRPC CRUD Application*
 
-This repository conatains a gRPC-based CRUD application built in Go. 
+This repository contains a gRPC-based CRUD application built in Go. 
 The application provides basic Create, Read, Update, and Delete (CRUD) operations for managing user data. 
 It uses PostgreSQL as the database and gRPC for communication.
 
