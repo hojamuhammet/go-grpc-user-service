@@ -1,0 +1,9 @@
+# Compiled protobuf files
+*.pb.go
+
+# Environmental variables
+.env
+
+# Compiled golang binaries
+*.exe
+*.out
