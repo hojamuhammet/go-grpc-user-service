@@ -13,3 +13,6 @@
 
 # Dependencies
 go.sum
+
+# Test files
+*_test.go
