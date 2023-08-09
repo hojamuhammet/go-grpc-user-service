@@ -10,3 +10,6 @@
 # Compiled golang binaries
 *.exe
 *.out
+
+# Dependencies
+go.sum
