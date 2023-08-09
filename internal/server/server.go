@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"time"
+
+	_ "github.com/lib/pq"
 
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // UserServer implements the UserServiceServer interface and provides user-related gRPC operations.
@@ -28,6 +32,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 	// Loop through the result set and scan each row into a User object.
 	for rows.Next() {
 		user := &pb.User{}
+
 		err := rows.Scan(
 			&user.Id,
 			&user.FirstName,
@@ -51,6 +56,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
 	// Execute a SELECT query with a WHERE clause to fetch the user by their ID.
 	user := &pb.User{}
+
 	err := s.DB.QueryRow("SELECT * FROM users WHERE id=$1", userID.Id).Scan(
 		&user.Id,
 		&user.FirstName,
@@ -92,7 +98,9 @@ func (s *UserServer) BlockUser(ctx context.Context, userID *pb.UserID) (*pb.Empt
 
 // CreateUser creates a new user in the database and returns the created user's information.
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
-	var user *pb.User
+	var user pb.User
+
+	var registrationTime time.Time
 
 	// Execute an INSERT query to add a new user to the "users" table and return the created user's data.
 	err := s.DB.QueryRow(
@@ -105,7 +113,7 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		&user.PhoneNumber,
 		&user.Password,
 		&user.Blocked,
-		&user.RegistrationDate,
+		&registrationTime,
 	)
 
 	if err != nil {
@@ -113,13 +121,15 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		return nil, err
 	}
 
+	user.RegistrationDate = timestamppb.New(registrationTime)
 	log.Printf("User created successfully: %v", err)
-	return user, nil
+	return &user, nil
 }
 
 // UpdateUser updates an existing user's information in the database and returns the updated user.
 func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) (*pb.User, error) {
-	var user *pb.User
+	var user pb.User
+	var registrationTime time.Time
 
 	// Execute an UPDATE query with a WHERE clause to modify the user's information.
 	err := s.DB.QueryRow(
@@ -132,12 +142,13 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 		&user.PhoneNumber,
 		&user.Password,
 		&user.Blocked,
-		&user.RegistrationDate,
+		&registrationTime,
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	user.RegistrationDate = timestamppb.New(registrationTime)
+	return &user, nil
 }
