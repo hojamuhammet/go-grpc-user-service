@@ -1,4 +1,4 @@
-module github.com/hojamuhammet/grpc-crud-go
+module github.com/hojamuhammet/go-grpc-user-service
 
 go 1.19
 

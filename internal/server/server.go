@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"log"
 
-	pb "github.com/hojamuhammet/grpc-crud-go/protobuf"
+	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
 
 // UserServer implements the UserServiceServer interface and provides user-related gRPC operations.

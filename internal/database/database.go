@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/hojamuhammet/grpc-crud-go/internal/config"
+	"github.com/hojamuhammet/go-grpc-user-service/internal/config"
 	_ "github.com/lib/pq"
 )
 

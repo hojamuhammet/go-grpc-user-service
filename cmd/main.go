@@ -7,13 +7,13 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
-	"github.com/hojamuhammet/grpc-crud-go/internal/config"
-	"github.com/hojamuhammet/grpc-crud-go/internal/database"
-	"github.com/hojamuhammet/grpc-crud-go/internal/server"
-	pb "github.com/hojamuhammet/grpc-crud-go/protobuf"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/hojamuhammet/go-grpc-user-service/internal/config"
+	"github.com/hojamuhammet/go-grpc-user-service/internal/database"
+	"github.com/hojamuhammet/go-grpc-user-service/internal/server"
+	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
 
 func main() {
