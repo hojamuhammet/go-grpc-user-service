@@ -16,3 +16,6 @@ go.sum
 
 # Test files
 *_test.go
+
+# Files of vs code
+.vscode

@@ -21,7 +21,7 @@ type UserServer struct {
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
 func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.UserList, error) {
 	// Execute a SELECT query to retrieve all users.
-	rows, err := s.DB.Query("SELECT * FROM users")
+	rows, err := s.DB.Query("SELECT id, first_name, last_name, phone_number, password, blocked, registration_date FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +33,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 	for rows.Next() {
 		user := &pb.User{}
 
+		var registrationTime time.Time
 		err := rows.Scan(
 			&user.Id,
 			&user.FirstName,
@@ -40,22 +41,30 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 			&user.PhoneNumber,
 			&user.Password,
 			&user.Blocked,
-			&user.RegistrationDate,
+			&registrationTime, // Scan the timestamp value as time.Time
 		)
 		if err != nil {
 			return nil, err
 		}
 
+		formattedRegistration := registrationTime.Format("02-01-2006 15:04:05")
+		user.RegistrationDate = timestamppb.New(registrationTime) // Convert time.Time to timestamppb.Timestamp
+
+		user.RegistrationDateString = formattedRegistration
+		
 		users = append(users, user)
 	}
 
 	return &pb.UserList{Users: users}, nil
 }
 
+
 // GetUserById retrieves a user from the database by their ID and returns it.
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
 	// Execute a SELECT query with a WHERE clause to fetch the user by their ID.
 	user := &pb.User{}
+
+	var registrationTime time.Time
 
 	err := s.DB.QueryRow("SELECT * FROM users WHERE id=$1", userID.Id).Scan(
 		&user.Id,
@@ -64,7 +73,7 @@ func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.Us
 		&user.PhoneNumber,
 		&user.Password,
 		&user.Blocked,
-		&user.RegistrationDate,
+		&registrationTime,
 	)
 
 	if err != nil {
@@ -100,12 +109,12 @@ func (s *UserServer) BlockUser(ctx context.Context, userID *pb.UserID) (*pb.Empt
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
 	var user pb.User
 
-	var registrationTime time.Time
+	registrationTime := time.Now().UTC().Format("2006-01-02 15:04:05")
 
 	// Execute an INSERT query to add a new user to the "users" table and return the created user's data.
 	err := s.DB.QueryRow(
-		"INSERT INTO users (first_name, last_name, phone_number, password) VALUES ($1, $2, $3, $4) RETURNING *",
-		userInput.FirstName, userInput.LastName, userInput.PhoneNumber, userInput.Password,
+		"INSERT INTO users (first_name, last_name, phone_number, password, registration_date) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+		userInput.FirstName, userInput.LastName, userInput.PhoneNumber, userInput.Password, registrationTime,
 	).Scan(
 		&user.Id,
 		&user.FirstName,
@@ -113,7 +122,7 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		&user.PhoneNumber,
 		&user.Password,
 		&user.Blocked,
-		&registrationTime,
+		&registrationTime, // Scan the formatted registration date
 	)
 
 	if err != nil {
@@ -121,10 +130,12 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		return nil, err
 	}
 
-	user.RegistrationDate = timestamppb.New(registrationTime)
+	registrationTimeParsed, _ := time.Parse("2006-01-02 15:04:05", registrationTime)
+	user.RegistrationDate = timestamppb.New(registrationTimeParsed)
 	log.Printf("User created successfully: %v", err)
 	return &user, nil
 }
+
 
 // UpdateUser updates an existing user's information in the database and returns the updated user.
 func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) (*pb.User, error) {
@@ -133,8 +144,8 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 
 	// Execute an UPDATE query with a WHERE clause to modify the user's information.
 	err := s.DB.QueryRow(
-		"UPDATE users SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5 WHERE id=$6 RETURNING *",
-		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Password, userUpdate.Blocked, userUpdate.Id,
+		"UPDATE users SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5, registration_date=$6 WHERE id=$7 RETURNING *",
+		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Password, userUpdate.Blocked, registrationTime.Format("02-01-2006 15:04:05"), userUpdate.Id,
 	).Scan(
 		&user.Id,
 		&user.FirstName,
@@ -149,6 +160,9 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 		return nil, err
 	}
 
+	formattedRegistrationDate := registrationTime.Format("02-01-2006 15:04:05")
 	user.RegistrationDate = timestamppb.New(registrationTime)
+	user.RegistrationDateString = formattedRegistrationDate
 	return &user, nil
 }
+
