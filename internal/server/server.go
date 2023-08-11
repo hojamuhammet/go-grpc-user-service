@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/hojamuhammet/go-grpc-user-service/internal/auth"
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -54,8 +55,6 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 
 	return &pb.UserList{Users: users}, nil
 }
-
-
 
 // GetUserById retrieves a user from the database by their ID and returns it.
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
@@ -143,6 +142,11 @@ func (s *UserServer) UnblockUser(ctx context.Context, userID *pb.UserID) (*pb.Em
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
 	var user pb.User
 
+	hashedPassword, err := auth.HashPassword(userInput.Password) // add your own hashing methods in your auth file
+	if err != nil {
+		return nil, err
+	}
+
 	registrationTime := time.Now().UTC().Format("2006-01-02 15:04:05")
 
 	query := `
@@ -151,8 +155,8 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		RETURNING *
 	`
 
-	err := s.DB.QueryRow(query,
-		userInput.FirstName, userInput.LastName, userInput.PhoneNumber, userInput.Password, registrationTime,
+	err = s.DB.QueryRow(query,
+		userInput.FirstName, userInput.LastName, userInput.PhoneNumber, hashedPassword, registrationTime,
 	).Scan(
 		&user.Id,
 		&user.FirstName,
@@ -183,6 +187,11 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 	// Generate the new registration time.
 	registrationTime = time.Now()
 
+	hashedPassword, err := auth.HashPassword(userUpdate.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		UPDATE users
 		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5, registration_date=$6
@@ -190,8 +199,8 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 		RETURNING *
 	`
 
-	err := s.DB.QueryRow(query,
-		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Password, userUpdate.Blocked, registrationTime.Format("2006-01-02 15:04:05"), userUpdate.Id,
+	err = s.DB.QueryRow(query,
+		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, hashedPassword, userUpdate.Blocked, registrationTime.Format("2006-01-02 15:04:05"), userUpdate.Id,
 	).Scan(
 		&user.Id,
 		&user.FirstName,
