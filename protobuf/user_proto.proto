@@ -19,6 +19,9 @@ service UserService {
 
   // BlockUser blocks a user by their ID.
   rpc BlockUser(UserID) returns (Empty);
+  
+  // UnblockUser unblocks a user by their ID.
+  rpc UnblockUser(UserID) returns (Empty);
 
   // CreateUser creates a new user with the given input data.
   rpc CreateUser(UserInput) returns (User);

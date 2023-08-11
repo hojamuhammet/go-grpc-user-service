@@ -118,6 +118,27 @@ func (s *UserServer) BlockUser(ctx context.Context, userID *pb.UserID) (*pb.Empt
 	return &pb.Empty{}, nil
 }
 
+// UnblockUser updates the "blocked" status of a user in the database and returns an empty response.
+func (s *UserServer) UnblockUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
+	// Execute an UPDATE query with a WHERE clause to set the "blocked" field to false for the given user ID.
+	result, err := s.DB.Exec("UPDATE users SET blocked=false WHERE id=$1", userID.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("user with ID %d not found", userID.Id)
+	}
+
+	return &pb.Empty{}, nil
+}
+
+
 // CreateUser creates a new user in the database and returns the created user's information.
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
 	var user pb.User
