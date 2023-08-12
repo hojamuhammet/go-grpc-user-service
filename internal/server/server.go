@@ -216,6 +216,6 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 	}
 
 	user.RegistrationDate = timestamppb.New(registrationTime)
-	user.RegistrationDateString = registrationTime.Format("02-01-2006 15:04:05 MST")
+	user.RegistrationDateString = registrationTime.Format("02-01-2006 15:04:05")
 	return &user, nil
 }
