@@ -4,30 +4,61 @@ package protobuf;
 
 option go_package = "./protobuf";
 
+import "protobuf/google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 // The UserService service provides operations for managing user data.
 service UserService {
   // GetAllUsers retrieves a list of all users.
-  rpc GetAllUsers(Empty) returns (UserList);
+  rpc GetAllUsers(Empty) returns (UserList) {
+    option (google.api.http) = {
+      get: "/users"
+    };
+  }
 
   // GetUserById retrieves a single user by their ID.
-  rpc GetUserById(UserID) returns (User);
+  rpc GetUserById(UserID) returns (User) {
+    option (google.api.http) = {
+      get: "/users/{id}"
+    };
+  }
 
   // DeleteUser deletes a user by their ID.
-  rpc DeleteUser(UserID) returns (Empty);
+  rpc DeleteUser(UserID) returns (Empty) {
+    option (google.api.http) = {
+      delete: "/users/{id}"
+    };
+  }
 
   // BlockUser blocks a user by their ID.
-  rpc BlockUser(UserID) returns (Empty);
+  rpc BlockUser(UserID) returns (Empty) {
+    option (google.api.http) = {
+      post: "/users/{id}/block"
+    };
+  }
   
   // UnblockUser unblocks a user by their ID.
-  rpc UnblockUser(UserID) returns (Empty);
+  rpc UnblockUser(UserID) returns (Empty) {
+    option (google.api.http) = {
+      post: "/users/{id}/unblock"
+    };
+  }
 
   // CreateUser creates a new user with the given input data.
-  rpc CreateUser(UserInput) returns (User);
+  rpc CreateUser(UserInput) returns (User) {
+    option (google.api.http) = {
+      post: "/users"
+      body: "*"
+    };
+  }
 
   // UpdateUser updates an existing user's data.
-  rpc UpdateUser(UserUpdate) returns (User);
+  rpc UpdateUser(UserUpdate) returns (User) {
+    option (google.api.http) = {
+      post: "/users"
+      body: "*"
+    };
+  }
 }
 
 // The UserID message represents the ID of a user.
@@ -72,3 +103,4 @@ message UserList {
 
 // The Empty message represents an empty response.
 message Empty {}
+
