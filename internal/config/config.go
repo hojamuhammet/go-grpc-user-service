@@ -12,6 +12,7 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	GRPCPort   string
+	HTTPPort   string
 }
 
 // LoadConfig loads the configuration from environment variables and returns a Config instance.
@@ -23,5 +24,6 @@ func LoadConfig() (*Config, error) {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
 		GRPCPort:   os.Getenv("GRPC_PORT"),
+		HTTPPort: 	os.Getenv("HTTPPort"),
 	}, nil
 }

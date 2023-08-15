@@ -4,7 +4,7 @@ package protobuf;
 
 option go_package = "./protobuf";
 
-import "protobuf/google/api/annotations.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 // The UserService service provides operations for managing user data.
@@ -47,7 +47,7 @@ service UserService {
   // CreateUser creates a new user with the given input data.
   rpc CreateUser(UserInput) returns (User) {
     option (google.api.http) = {
-      post: "/users"
+      post: "/users/create"
       body: "*"
     };
   }
@@ -55,7 +55,7 @@ service UserService {
   // UpdateUser updates an existing user's data.
   rpc UpdateUser(UserUpdate) returns (User) {
     option (google.api.http) = {
-      post: "/users"
+      post: "/users/update"
       body: "*"
     };
   }

@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
+	"net/http"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/hojamuhammet/go-grpc-user-service/internal/config"
 	"github.com/hojamuhammet/go-grpc-user-service/internal/database"
 	"github.com/hojamuhammet/go-grpc-user-service/internal/server"
-	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
+	"github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
 
 func main() {
@@ -50,13 +54,29 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterUserServiceServer(s, &server.UserServer{DB: db})
+	protobuf.RegisterUserServiceServer(s, &server.UserServer{DB: db})
 
 	// Enable the reflection service on the server.
 	reflection.Register(s)
 
 	log.Println("gRPC server is listening on", cfg.GRPCPort)
-	if err := s.Serve(lis); err != nil {
-		log.Fatal("Failed to serve: ", err)
+
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			log.Fatal("Failed to serve: ", err)
+		}
+	}()
+
+	// Start gRPC Gateway server
+	mux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	err = protobuf.RegisterUserServiceHandlerFromEndpoint(context.TODO(), mux, "localhost:"+cfg.GRPCPort, opts)
+	if err != nil {
+		log.Fatalf("Failed to register gRPC Gateway: %v", err)
+	}
+
+	log.Println("gRPC Gateway server is listening on", cfg.HTTPPort)
+	if err := http.ListenAndServe(":"+cfg.HTTPPort, mux); err != nil {
+		log.Fatal("Failed to serve gRPC Gateway: ", err)
 	}
 }
