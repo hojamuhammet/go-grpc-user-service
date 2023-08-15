@@ -71,7 +71,6 @@ message UserInput {
   string first_name = 1;
   string last_name = 2;
   string phone_number = 3;
-  string password = 4;
 }
 
 // The UserUpdate message represents the data for updating an existing user.
@@ -80,8 +79,7 @@ message UserUpdate {
   string first_name = 2;
   string last_name = 3;
   string phone_number = 4;
-  string password = 5;
-  bool blocked = 6;
+  bool blocked = 5;
 }
 
 // The User message represents a user with their information.
@@ -90,8 +88,7 @@ message User {
   string first_name = 2;
   string last_name = 3;
   string phone_number = 4;
-  string password = 5;
-  bool blocked = 6;
+  bool blocked = 5;
   google.protobuf.Timestamp registration_date = 7;
   string registration_date_string = 8; // New field for formatted date
 }
