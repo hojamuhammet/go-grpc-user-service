@@ -1,5 +1,6 @@
 # Compiled protobuf files
 *.pb.go
+*.pb.gw.go
 
 # Environmental variables
 .env
