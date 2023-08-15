@@ -5,13 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"time"
 
 	_ "github.com/lib/pq"
 
-	"github.com/hojamuhammet/go-grpc-user-service/internal/auth"
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // UserServer implements the UserServiceServer interface and provides user-related gRPC operations.
@@ -22,7 +19,7 @@ type UserServer struct {
 
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
 func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.UserList, error) {
-	query := "SELECT id, first_name, last_name, phone_number, password, blocked, registration_date FROM users"
+	query := "SELECT id, first_name, last_name, phone_number, blocked, registration_date FROM users"
 	rows, err := s.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -33,23 +30,18 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 
 	for rows.Next() {
 		user := &pb.User{}
-		var registrationTime time.Time
 
 		err := rows.Scan(
 			&user.Id,
 			&user.FirstName,
 			&user.LastName,
 			&user.PhoneNumber,
-			&user.Password,
 			&user.Blocked,
-			&registrationTime,
+			&user.RegistrationDate,
 		)
 		if err != nil {
 			return nil, err
 		}
-
-		user.RegistrationDate = timestamppb.New(registrationTime)
-		user.RegistrationDateString = registrationTime.Format("02-01-2006 15:04:05 MST")
 		users = append(users, user)
 	}
 
@@ -61,27 +53,18 @@ func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.Us
 	// Execute a SELECT query with a WHERE clause to fetch the user by their ID.
 	user := &pb.User{}
 
-	var registrationTime time.Time
-
 	err := s.DB.QueryRow("SELECT * FROM users WHERE id=$1", userID.Id).Scan(
 		&user.Id,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
-		&user.Password,
 		&user.Blocked,
-		&registrationTime,
+		&user.RegistrationDate,
 	)
 
 	if err != nil {
 		return nil, err
 	}
-
-	// Format the registrationTime as "yyyy:mm:dd hh:mm:ss".
-	registrationTimeString := registrationTime.Format("2006-01-02 15:04:05")
-
-	// Set the formatted registration date in the registration_date_string field.
-	user.RegistrationDateString = registrationTimeString
 
 	return user, nil
 }
@@ -141,30 +124,19 @@ func (s *UserServer) UnblockUser(ctx context.Context, userID *pb.UserID) (*pb.Em
 // CreateUser creates a new user in the database and returns the created user's information.
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
 	var user pb.User
-
-	hashedPassword, err := auth.HashPassword(userInput.Password) // add your own hashing methods in your auth file
-	if err != nil {
-		return nil, err
-	}
-
-	registrationTime := time.Now().UTC().Format("2006-01-02 15:04:05")
-
+	
 	query := `
-		INSERT INTO users (first_name, last_name, phone_number, password, registration_date)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING *
+		INSERT INTO users (first_name, last_name, phone_number)
+		VALUES ($1, $2, $3)
+		RETURNING first_name, last_name, phone_number
 	`
 
-	err = s.DB.QueryRow(query,
-		userInput.FirstName, userInput.LastName, userInput.PhoneNumber, hashedPassword, registrationTime,
+	err := s.DB.QueryRow(query,
+		userInput.FirstName, userInput.LastName, userInput.PhoneNumber,
 	).Scan(
-		&user.Id,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
-		&user.Password,
-		&user.Blocked,
-		&registrationTime,
 	)
 
 	if err != nil {
@@ -172,50 +144,34 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 		return nil, err
 	}
 
-	registrationTimeParsed, _ := time.Parse("2006-01-02 15:04:05", registrationTime)
-	user.RegistrationDate = timestamppb.New(registrationTimeParsed)
 	log.Println("User created successfully")
 	return &user, nil
 }
 
 func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) (*pb.User, error) {
-	var (
-		user pb.User
-		registrationTime time.Time
-	)
-
-	// Generate the new registration time.
-	registrationTime = time.Now()
-
-	hashedPassword, err := auth.HashPassword(userUpdate.Password)
-	if err != nil {
-		return nil, err
-	}
+	var user pb.User
 
 	query := `
 		UPDATE users
-		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5, registration_date=$6
-		WHERE id=$7
+		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5,
+		WHERE id=$5
 		RETURNING *
 	`
 
-	err = s.DB.QueryRow(query,
-		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, hashedPassword, userUpdate.Blocked, registrationTime.Format("2006-01-02 15:04:05"), userUpdate.Id,
+	err := s.DB.QueryRow(query,
+		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Blocked, userUpdate.Id,
 	).Scan(
 		&user.Id,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
-		&user.Password,
 		&user.Blocked,
-		&registrationTime,
+		&user.RegistrationDate,
 	)
 
 	if err != nil {
 		return nil, err
 	}
-
-	user.RegistrationDate = timestamppb.New(registrationTime)
-	user.RegistrationDateString = registrationTime.Format("02-01-2006 15:04:05")
+	
 	return &user, nil
 }
