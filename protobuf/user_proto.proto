@@ -10,7 +10,7 @@ import "google/protobuf/timestamp.proto";
 // The UserService service provides operations for managing user data.
 service UserService {
   // GetAllUsers retrieves a list of all users.
-  rpc GetAllUsers(Empty) returns (UserList) {
+  rpc GetAllUsers(GetAllUsersRequest) returns (UserList) {
     option (google.api.http) = {
       get: "/users"
     };
@@ -101,3 +101,11 @@ message UserList {
 // The Empty message represents an empty response.
 message Empty {}
 
+message Pagination {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message GetAllUsersRequest {
+  Pagination pagination = 1;
+}
