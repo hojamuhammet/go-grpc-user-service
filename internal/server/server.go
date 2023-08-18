@@ -7,6 +7,8 @@ import (
 	"log"
 
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
@@ -18,9 +20,26 @@ type UserServer struct {
 }
 
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
-func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.UserList, error) {
-	query := "SELECT id, first_name, last_name, phone_number, blocked, registration_date FROM users"
-	rows, err := s.DB.Query(query)
+func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest) (*pb.UserList, error) {
+	pageSize := req.Pagination.PageSize
+	pageToken := req.Pagination.PageToken
+
+	if pageSize <= 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "PageSize must be greater than 0")
+	}
+
+	query := `
+		SELECT id, first_name, last_name, phone_number, blocked, registration_date
+		FROM users
+		ORDER BY id
+		LIMIT $1
+	`
+
+	if pageToken != "" {
+		query += " OFFSET $2"
+	}
+
+	rows, err := s.DB.Query(query, pageSize, pageToken)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +66,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, empty *pb.Empty) (*pb.User
 
 	return &pb.UserList{Users: users}, nil
 }
+
 
 // GetUserById retrieves a user from the database by their ID and returns it.
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
@@ -153,8 +173,8 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 
 	query := `
 		UPDATE users
-		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5,
-		WHERE id=$5
+		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5
+		WHERE id=$6
 		RETURNING *
 	`
 
