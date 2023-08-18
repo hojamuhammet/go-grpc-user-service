@@ -24,6 +24,6 @@ func LoadConfig() (*Config, error) {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
 		GRPCPort:   os.Getenv("GRPC_PORT"),
-		HTTPPort: 	os.Getenv("HTTPPort"),
+		HTTPPort: 	os.Getenv("HTTP_Port"),
 	}, nil
 }
