@@ -51,7 +51,12 @@ func main() {
 		log.Fatal("Failed to listen: ", err)
 	}
 
-	s := grpc.NewServer()
+	maxPayloadSize := 1 * 1024 * 1024
+
+	s := grpc.NewServer(
+		grpc.MaxRecvMsgSize(maxPayloadSize),
+		grpc.MaxSendMsgSize(maxPayloadSize),
+	)
 	protobuf.RegisterUserServiceServer(s, &server.UserServer{DB: db})
 
 	// Enable the reflection service on the server.
