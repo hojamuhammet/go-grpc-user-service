@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"net/http"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
@@ -72,7 +74,12 @@ func main() {
 
 	// Start gRPC Gateway server
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	httpMux := server.CreateHTTPRouter("localhost:"+cfg.GRPCPort, opts)
+	httpMux := runtime.NewServeMux()
+
+	err = protobuf.RegisterUserServiceHandlerFromEndpoint(context.Background(), httpMux, ":"+cfg.GRPCPort, opts)
+	if err != nil {
+		log.Fatal("Failed to register gRPC Gateway: ", err)
+	}
 
 	log.Println("gRPC Gateway server is listening on", cfg.HTTPPort)
 	if err := http.ListenAndServe(":"+cfg.HTTPPort, httpMux); err != nil {
