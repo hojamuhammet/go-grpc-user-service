@@ -64,7 +64,7 @@ func main() {
 	// Enable the reflection service on the server.
 	reflection.Register(s)
 
-	log.Println("gRPC server is listening on", cfg.GRPCPort)
+	log.Println("gRPC server is listening on port :", cfg.GRPCPort)
 
 	go func() {
 		if err := s.Serve(lis); err != nil {
@@ -81,7 +81,7 @@ func main() {
 		log.Fatal("Failed to register gRPC Gateway: ", err)
 	}
 
-	log.Println("gRPC Gateway server is listening on", cfg.HTTPPort)
+	log.Println("gRPC Gateway server is listening on port:", cfg.HTTPPort)
 	if err := http.ListenAndServe(":"+cfg.HTTPPort, httpMux); err != nil {
 		log.Fatal("Failed to serve gRPC Gateway: ", err)
 	}
