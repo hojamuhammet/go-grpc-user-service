@@ -17,5 +17,3 @@ go.sum
 
 # Files of vs code
 .vscode
-
-internal/auth/password_utils.go
