@@ -55,7 +55,7 @@ service UserService {
   // UpdateUser updates an existing user's data.
   rpc UpdateUser(UserUpdate) returns (User) {
     option (google.api.http) = {
-      post: "/users/update"
+      post: "/users/{id}/update"
       body: "*"
     };
   }
