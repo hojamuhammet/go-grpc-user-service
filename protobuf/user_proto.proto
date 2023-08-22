@@ -90,7 +90,6 @@ message User {
   string phone_number = 4;
   bool blocked = 5;
   google.protobuf.Timestamp registration_date = 7;
-  string registration_date_string = 8; // New field for formatted date
 }
 
 // The UserList message represents a list of users.

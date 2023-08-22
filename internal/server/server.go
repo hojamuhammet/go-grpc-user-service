@@ -8,8 +8,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hojamuhammet/go-grpc-user-service/internal/utils"
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
 
@@ -47,7 +47,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
             return nil, err
         }
 
-		user.RegistrationDate = timestamppb.New(registrationDate)
+		user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
         users = append(users, user)
     }
 
