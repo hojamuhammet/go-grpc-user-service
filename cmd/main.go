@@ -64,7 +64,7 @@ func main() {
 	// Enable the reflection service on the server.
 	reflection.Register(s)
 
-	log.Println("gRPC server is listening on port :", cfg.GRPCPort)
+	log.Println("gRPC server is listening on port:", cfg.GRPCPort)
 
 	go func() {
 		if err := s.Serve(lis); err != nil {

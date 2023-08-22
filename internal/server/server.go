@@ -8,6 +8,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/hojamuhammet/go-grpc-user-service/internal/utils"
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
@@ -24,7 +26,8 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
     query := "SELECT id, first_name, last_name, phone_number, blocked, registration_date FROM users"
     rows, err := s.DB.Query(query)
     if err != nil {
-        return nil, err
+		log.Printf("Error querying users: %v", err)
+        return nil, status.Error(codes.Internal, "Failed to fetch users")
     }
     defer rows.Close()
 
@@ -44,13 +47,15 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
             &registrationDate,
         )
         if err != nil {
-            return nil, err
+			log.Printf("Error scanning user: %v", err)
+            return nil, status.Error(codes.Internal, "Failed to retrieve user data")
         }
 
 		user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
         users = append(users, user)
     }
 
+	log.Printf("Successfully retrieved user list")
     return &pb.UserList{Users: users}, nil
 }
 
@@ -59,6 +64,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
 	// Execute a SELECT query with a WHERE clause to fetch the user by their ID.
 	user := &pb.User{}
+	var registrationDate time.Time
 
 	err := s.DB.QueryRow("SELECT * FROM users WHERE id=$1", userID.Id).Scan(
 		&user.Id,
@@ -66,13 +72,20 @@ func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.Us
 		&user.LastName,
 		&user.PhoneNumber,
 		&user.Blocked,
-		&user.RegistrationDate,
+		&registrationDate,
 	)
 
 	if err != nil {
-		return nil, err
+		log.Printf("Error quiering user by ID %d: %v", userID.Id, err)
+		if err == sql.ErrNoRows {
+			return nil, status.Error(codes.NotFound, "User not found")
+		}
+		return nil, status.Error(codes.Internal, "Failed to fetch user")
 	}
 
+	user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
+
+	log.Printf("Successfully retrieved user with ID %d", userID.Id)
 	return user, nil
 }
 
@@ -87,69 +100,84 @@ func (s *UserServer) DeleteUser(ctx context.Context, userID *pb.UserID) (*pb.Emp
 	return &pb.Empty{}, nil
 }
 
-// BlockUser updates the "blocked" status of a user in the database and returns an empty response.
-func (s *UserServer) BlockUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
-	// Execute an UPDATE query with a WHERE clause to set the "blocked" field to true for the given user ID.
-	result, err := s.DB.Exec("UPDATE users SET blocked=true WHERE id=$1", userID.Id)
+func (s *UserServer) toggleBlockStatus(ctx context.Context, userID *pb.UserID, blocked bool) error {
+	// Execute an UPDATE query with a WHERE clause to set the "blocked" field to the specified status for the given user ID.
+	result, err := s.DB.Exec("UPDATE users SET blocked=$1 WHERE id=$2", blocked, userID.Id)
 	if err != nil {
-		return nil, err
+		log.Printf("Failed to update user status (UserID: %d): %v", userID.Id, err)
+		return status.Error(codes.Internal, "Failed to update user status")
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		log.Printf("Failed to retrieve rows affected (UserID: %d): %v", userID.Id, err)
+		return status.Error(codes.Internal, "Failed to retrieve rows affected")
 	}
 
 	if rowsAffected == 0 {
-		return nil, fmt.Errorf("user with ID %d not found", userID.Id)
+		log.Printf("User not found (UserID: %d)", userID.Id)
+		return status.Error(codes.NotFound, fmt.Sprintf("User with ID %d not found", userID.Id))
 	}
 
+	return nil
+}
+
+// BlockUser updates the "blocked" status of a user in the database and returns an empty response.
+func (s *UserServer) BlockUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
+	if err := s.toggleBlockStatus(ctx, userID, true); err != nil {
+		if status.Code(err) == codes.NotFound {
+			log.Printf("User not found: %v", err)
+			return nil, status.Error(codes.NotFound, "User not found")
+		}
+		log.Printf("Internal server error (BlockUser): %v", err)
+		return nil, status.Error(codes.Internal, "Internal server error")
+	}
+
+	log.Printf("User with ID %d successfully blocked", userID.Id)
 	return &pb.Empty{}, nil
 }
 
 // UnblockUser updates the "blocked" status of a user in the database and returns an empty response.
 func (s *UserServer) UnblockUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
-	// Execute an UPDATE query with a WHERE clause to set the "blocked" field to false for the given user ID.
-	result, err := s.DB.Exec("UPDATE users SET blocked=false WHERE id=$1", userID.Id)
-	if err != nil {
-		return nil, err
+	if err := s.toggleBlockStatus(ctx, userID, false); err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, status.Error(codes.NotFound, "User not found")
+		}
+		log.Printf("Internal server error (UnblockUser): %v", err)
+		return nil, status.Error(codes.Internal, "Internal server error")
 	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		return nil, fmt.Errorf("user with ID %d not found", userID.Id)
-	}
-
+	
+	log.Printf("User with ID %d successfully unblocked", userID.Id)
 	return &pb.Empty{}, nil
 }
-
 
 // CreateUser creates a new user in the database and returns the created user's information.
 func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*pb.User, error) {
 	var user pb.User
+	var registrationDate time.Time
 	
 	query := `
 		INSERT INTO users (first_name, last_name, phone_number)
 		VALUES ($1, $2, $3)
-		RETURNING first_name, last_name, phone_number
+		RETURNING id, first_name, last_name, phone_number, registration_date
 	`
 
 	err := s.DB.QueryRow(query,
 		userInput.FirstName, userInput.LastName, userInput.PhoneNumber,
 	).Scan(
+		&user.Id,
 		&user.FirstName,
 		&user.LastName,
 		&user.PhoneNumber,
+		&registrationDate,
 	)
 
 	if err != nil {
 		log.Printf("Error creating user: %v", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, "Failed to create user")
 	}
+
+	user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
 
 	log.Println("User created successfully")
 	return &user, nil
@@ -157,11 +185,12 @@ func (s *UserServer) CreateUser(ctx context.Context, userInput *pb.UserInput) (*
 
 func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) (*pb.User, error) {
 	var user pb.User
+	var registrationDate time.Time
 
 	query := `
 		UPDATE users
-		SET first_name=$1, last_name=$2, phone_number=$3, password=$4, blocked=$5
-		WHERE id=$6
+		SET first_name=$1, last_name=$2, phone_number=$3, blocked=$4
+		WHERE id=$5
 		RETURNING *
 	`
 
@@ -173,12 +202,16 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 		&user.LastName,
 		&user.PhoneNumber,
 		&user.Blocked,
-		&user.RegistrationDate,
+		&registrationDate,
 	)
 
 	if err != nil {
-		return nil, err
+		log.Printf("Error updating user: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to update user")
 	}
+
+	user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
 	
+	log.Println("User updated successfully")
 	return &user, nil
 }

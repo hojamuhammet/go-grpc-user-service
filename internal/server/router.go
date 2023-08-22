@@ -9,6 +9,8 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf" // Import your protobuf package here
 )
@@ -24,13 +26,25 @@ func RegisterHandlers(ctx context.Context, mux *runtime.ServeMux, endpoint strin
 // CreateHTTPRouter creates an HTTP router with gRPC-Gateway handlers.
 func CreateHTTPRouter(endpoint string, opts []grpc.DialOption) http.Handler {
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
-	mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux(
+		runtime.WithErrorHandler(customHTTPErrorMapper),
+	)
 	RegisterHandlers(ctx, mux, endpoint, opts)
 
 	// Optionally, you can add more HTTP routes to the mux here using standard http.HandleFunc.
 
 	return mux
+}
+
+
+func customHTTPErrorMapper(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.Marshaler, w http.ResponseWriter, req *http.Request, err error) {
+    // Handle gRPC errors and map them to HTTP status codes.
+    grpcStatus := status.Convert(err)
+    switch grpcStatus.Code() {
+    case codes.NotFound:
+        w.WriteHeader(http.StatusNotFound)
+    default:
+        w.WriteHeader(http.StatusInternalServerError)
+    }
 }
