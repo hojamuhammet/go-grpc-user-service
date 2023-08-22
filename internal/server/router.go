@@ -32,8 +32,6 @@ func CreateHTTPRouter(endpoint string, opts []grpc.DialOption) http.Handler {
 	)
 	RegisterHandlers(ctx, mux, endpoint, opts)
 
-	// Optionally, you can add more HTTP routes to the mux here using standard http.HandleFunc.
-
 	return mux
 }
 
