@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	_ "github.com/lib/pq"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/hojamuhammet/go-grpc-user-service/protobuf"
 )
@@ -21,50 +21,37 @@ type UserServer struct {
 
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
 func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest) (*pb.UserList, error) {
-	pageSize := req.Pagination.PageSize
-	pageToken := req.Pagination.PageToken
+    query := "SELECT id, first_name, last_name, phone_number, blocked, registration_date FROM users"
+    rows, err := s.DB.Query(query)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	if pageSize <= 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "PageSize must be greater than 0")
-	}
+    var users []*pb.User
+	var registrationDate time.Time
 
-	query := `
-		SELECT id, first_name, last_name, phone_number, blocked, registration_date
-		FROM users
-		ORDER BY id
-		LIMIT $1
-	`
+    for rows.Next() {
+        user := &pb.User{}
 
-	if pageToken != "" {
-		query += " OFFSET $2"
-	}
 
-	rows, err := s.DB.Query(query, pageSize, pageToken)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+        err := rows.Scan(
+            &user.Id,
+            &user.FirstName,
+            &user.LastName,
+            &user.PhoneNumber,
+            &user.Blocked,
+            &registrationDate,
+        )
+        if err != nil {
+            return nil, err
+        }
 
-	var users []*pb.User
+		user.RegistrationDate = timestamppb.New(registrationDate)
+        users = append(users, user)
+    }
 
-	for rows.Next() {
-		user := &pb.User{}
-
-		err := rows.Scan(
-			&user.Id,
-			&user.FirstName,
-			&user.LastName,
-			&user.PhoneNumber,
-			&user.Blocked,
-			&user.RegistrationDate,
-		)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-
-	return &pb.UserList{Users: users}, nil
+    return &pb.UserList{Users: users}, nil
 }
 
 
