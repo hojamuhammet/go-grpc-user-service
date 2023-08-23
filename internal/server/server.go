@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -23,8 +24,40 @@ type UserServer struct {
 
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
 func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest) (*pb.UserList, error) {
-    query := "SELECT id, first_name, last_name, phone_number, blocked, registration_date FROM users"
-    rows, err := s.DB.Query(query)
+	if req.Pagination == nil {
+		req.Pagination = &pb.Pagination{
+			PageSize: 10,
+			PageToken: "",
+		}
+	}
+	pageSize := int(req.Pagination.PageSize)
+	pageToken := req.Pagination.PageToken
+
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+    var query string
+	var args []interface{} // Store query arguments
+
+	if pageToken == "" {
+		query = `
+			SELECT id, first_name, last_name, phone_number, blocked, registration_date 
+			FROM users
+			LIMIT $1
+		`
+		args = append(args, pageSize)
+	} else {
+		query = `
+			SELECT id, first_name, last_name, phone_number, blocked, registration_date 
+			FROM users
+			WHERE id > $1
+			LIMIT $2
+		`
+		args = append(args, pageToken, pageSize)
+	}
+
+    rows, err := s.DB.Query(query, args...)
     if err != nil {
 		log.Printf("Error querying users: %v", err)
         return nil, status.Error(codes.Internal, "Failed to fetch users")
@@ -36,8 +69,6 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
 
     for rows.Next() {
         user := &pb.User{}
-
-
         err := rows.Scan(
             &user.Id,
             &user.FirstName,
@@ -55,8 +86,19 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest
         users = append(users, user)
     }
 
+	var nextPageToken string
+	if len(users) > 0 {
+		maxID := users[len(users)-1].Id
+		nextPageToken = strconv.Itoa(int(maxID))
+	}
+
+	response := &pb.UserList{
+		Users: users,
+		NextPageToken: nextPageToken,
+	}
+
 	log.Printf("Successfully retrieved user list")
-    return &pb.UserList{Users: users}, nil
+    return response, nil
 }
 
 
@@ -91,12 +133,27 @@ func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.Us
 
 // DeleteUser deletes a user from the database by their ID and returns an empty response.
 func (s *UserServer) DeleteUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
+	log.Printf("Deleting user with ID: %d", userID.Id)
+	
 	// Execute a DELETE query with a WHERE clause to remove the user with the given ID.
-	_, err := s.DB.Exec("DELETE FROM users WHERE id=$1", userID.Id)
+	result, err := s.DB.Exec("DELETE FROM users WHERE id=$1", userID.Id)
 	if err != nil {
-		return nil, err
+		log.Printf("Error deleting user: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to delete user")
 	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Error getting rows affected: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to delete user")
+	}
+
+	if rowsAffected == 0 {
+		log.Printf("User not found with ID: %d", userID.Id)
+		return nil, status.Error(codes.NotFound, "User not found")
+	}
+
+	log.Printf("User with ID %d successfully deleted", userID.Id)
 	return &pb.Empty{}, nil
 }
 
@@ -187,15 +244,17 @@ func (s *UserServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) 
 	var user pb.User
 	var registrationDate time.Time
 
+	log.Printf("Updating user with ID: %d", userUpdate.Id)
+
 	query := `
 		UPDATE users
-		SET first_name=$1, last_name=$2, phone_number=$3, blocked=$4
-		WHERE id=$5
+		SET first_name=$1, last_name=$2, phone_number=$3
+		WHERE id=$4
 		RETURNING *
 	`
 
 	err := s.DB.QueryRow(query,
-		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Blocked, userUpdate.Id,
+		userUpdate.FirstName, userUpdate.LastName, userUpdate.PhoneNumber, userUpdate.Id,
 	).Scan(
 		&user.Id,
 		&user.FirstName,

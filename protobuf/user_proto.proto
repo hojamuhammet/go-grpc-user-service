@@ -79,7 +79,6 @@ message UserUpdate {
   string first_name = 2;
   string last_name = 3;
   string phone_number = 4;
-  bool blocked = 5;
 }
 
 // The User message represents a user with their information.
@@ -95,6 +94,7 @@ message User {
 // The UserList message represents a list of users.
 message UserList {
   repeated User users = 1;
+  string NextPageToken = 2;
 }
 
 // The Empty message represents an empty response.
