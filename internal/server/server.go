@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -23,82 +22,47 @@ type UserServer struct {
 }
 
 // GetAllUsers retrieves all users from the database and returns them as a UserList.
-func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.GetAllUsersRequest) (*pb.UserList, error) {
-	if req.Pagination == nil {
-		req.Pagination = &pb.Pagination{
-			PageSize: 10,
-			PageToken: "",
-		}
-	}
-	pageSize := int(req.Pagination.PageSize)
-	pageToken := req.Pagination.PageToken
+func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.Empty) (*pb.UserList, error) {
+	query := `
+		SELECT id, first_name, last_name, phone_number, blocked, registration_date 
+		FROM users
+	`
 
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-
-    var query string
-	var args []interface{} // Store query arguments
-
-	if pageToken == "" {
-		query = `
-			SELECT id, first_name, last_name, phone_number, blocked, registration_date 
-			FROM users
-			LIMIT $1
-		`
-		args = append(args, pageSize)
-	} else {
-		query = `
-			SELECT id, first_name, last_name, phone_number, blocked, registration_date 
-			FROM users
-			WHERE id > $1
-			LIMIT $2
-		`
-		args = append(args, pageToken, pageSize)
-	}
-
-    rows, err := s.DB.Query(query, args...)
-    if err != nil {
+	rows, err := s.DB.Query(query)
+	if err != nil {
 		log.Printf("Error querying users: %v", err)
-        return nil, status.Error(codes.Internal, "Failed to fetch users")
-    }
-    defer rows.Close()
+		return nil, status.Error(codes.Internal, "Failed to fetch users")
+	}
+	defer rows.Close()
 
-    var users []*pb.User
+	var users []*pb.User
 	var registrationDate time.Time
 
-    for rows.Next() {
-        user := &pb.User{}
-        err := rows.Scan(
-            &user.Id,
-            &user.FirstName,
-            &user.LastName,
-            &user.PhoneNumber,
-            &user.Blocked,
-            &registrationDate,
-        )
-        if err != nil {
+	for rows.Next() {
+		user := &pb.User{}
+		err := rows.Scan(
+			&user.Id,
+			&user.FirstName,
+			&user.LastName,
+			&user.PhoneNumber,
+			&user.Blocked,
+			&registrationDate,
+		)
+		if err != nil {
 			log.Printf("Error scanning user: %v", err)
-            return nil, status.Error(codes.Internal, "Failed to retrieve user data")
-        }
+			return nil, status.Error(codes.Internal, "Failed to retrieve user data")
+		}
 
 		user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
-        users = append(users, user)
-    }
-
-	var nextPageToken string
-	if len(users) > 0 {
-		maxID := users[len(users)-1].Id
-		nextPageToken = strconv.Itoa(int(maxID))
+		users = append(users, user)
 	}
 
 	response := &pb.UserList{
 		Users: users,
-		NextPageToken: nextPageToken,
 	}
 
 	log.Printf("Successfully retrieved user list")
-    return response, nil
+	return response, nil
 }
 
 
@@ -134,7 +98,7 @@ func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.Us
 // DeleteUser deletes a user from the database by their ID and returns an empty response.
 func (s *UserServer) DeleteUser(ctx context.Context, userID *pb.UserID) (*pb.Empty, error) {
 	log.Printf("Deleting user with ID: %d", userID.Id)
-	
+
 	// Execute a DELETE query with a WHERE clause to remove the user with the given ID.
 	result, err := s.DB.Exec("DELETE FROM users WHERE id=$1", userID.Id)
 	if err != nil {
