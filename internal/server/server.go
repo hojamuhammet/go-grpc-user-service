@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -21,50 +22,85 @@ type UserServer struct {
 	DB *sql.DB // Database connection object.
 }
 
-// GetAllUsers retrieves all users from the database and returns them as a UserList.
-func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.Empty) (*pb.UserList, error) {
-	query := `
-		SELECT id, first_name, last_name, phone_number, blocked, registration_date 
-		FROM users
-	`
+func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.PageRequest) (*pb.UserList, error) {
+    // Extract pagination parameters from the request.
+    pageSize := req.PageSize
+    pageToken := req.PageToken
 
-	rows, err := s.DB.Query(query)
-	if err != nil {
-		log.Printf("Error querying users: %v", err)
-		return nil, status.Error(codes.Internal, "Failed to fetch users")
-	}
-	defer rows.Close()
+    // If page size is not provided or less than 1, set a default value.
+    if pageSize <= 0 {
+        pageSize = 10 // You can change this default value as needed.
+    }
 
-	var users []*pb.User
-	var registrationDate time.Time
+    // Initialize a slice to store the retrieved users.
+    var users []*pb.User
 
-	for rows.Next() {
-		user := &pb.User{}
-		err := rows.Scan(
-			&user.Id,
-			&user.FirstName,
-			&user.LastName,
-			&user.PhoneNumber,
-			&user.Blocked,
-			&registrationDate,
-		)
-		if err != nil {
-			log.Printf("Error scanning user: %v", err)
-			return nil, status.Error(codes.Internal, "Failed to retrieve user data")
+    // Define the base query for retrieving users.
+    query := `
+        SELECT id, first_name, last_name, phone_number, blocked, registration_date 
+        FROM users
+    `
+
+    // If a page token is provided, add an ORDER BY clause to the query based on the pageToken.
+    // If a page token is provided, validate it and add an ORDER BY clause.
+	// If a page token is provided, add a WHERE clause to the query to start from the specified user ID.
+	if pageToken != "" {
+		if pageTokenInt, err := strconv.Atoi(pageToken); err == nil {
+			query += fmt.Sprintf(" WHERE id > %d", pageTokenInt)
+		} else {
+			log.Printf("Invalid page token: %v", err)
+			return nil, status.Error(codes.InvalidArgument, "Invalid page token")
 		}
-
-		user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
-		users = append(users, user)
 	}
 
-	response := &pb.UserList{
-		Users: users,
-	}
+    // Add LIMIT to restrict the number of results per page.
+    query += " LIMIT $1"
 
-	log.Printf("Successfully retrieved user list")
-	return response, nil
+    // Execute the query.
+    rows, err := s.DB.Query(query, pageSize)
+    if err != nil {
+        log.Printf("Error querying users: %v", err)
+        return nil, status.Error(codes.Internal, "Failed to fetch users")
+    }
+    defer rows.Close()
+
+    var registrationDate time.Time
+
+    for rows.Next() {
+        user := &pb.User{}
+        err := rows.Scan(
+            &user.Id,
+            &user.FirstName,
+            &user.LastName,
+            &user.PhoneNumber,
+            &user.Blocked,
+            &registrationDate,
+        )
+        if err != nil {
+            log.Printf("Error scanning user: %v", err)
+            return nil, status.Error(codes.Internal, "Failed to retrieve user data")
+        }
+
+        user.RegistrationDate = utils.ConvertToTimestamp(registrationDate)
+        users = append(users, user)
+    }
+
+    // To implement keyset pagination, you need to provide a page token for the next page.
+    // You can calculate the next page token based on the last user's ID.
+    nextPageToken := ""
+    if len(users) > 0 {
+        lastUserID := users[len(users)-1].Id
+        nextPageToken = strconv.Itoa(int(lastUserID))
+    }
+
+    response := &pb.UserList{
+        Users:         users,
+        NextPageToken: nextPageToken,
+    }
+
+    log.Printf("Successfully retrieved user list")
+    return response, nil
 }
-
 
 // GetUserById retrieves a user from the database by their ID and returns it.
 func (s *UserServer) GetUserById(ctx context.Context, userID *pb.UserID) (*pb.User, error) {
