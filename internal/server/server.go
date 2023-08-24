@@ -91,6 +91,7 @@ func (s *UserServer) GetAllUsers(ctx context.Context, req *pb.PageRequest) (*pb.
     if len(users) > 0 {
         lastUserID := users[len(users)-1].Id
         nextPageToken = strconv.Itoa(int(lastUserID))
+		log.Printf("Next page token: %s", nextPageToken)
     }
 
     response := &pb.UserList{
